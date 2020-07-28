@@ -6,6 +6,8 @@ import datetime
 import iceutils as ice
 import sys
 
+plt.rc('font', size=12)
+
 ## Set up combined hdf5 stack
 #fpath='/Users/lizz/Documents/Research/Gld-timeseries/Stack/'
 hel_stack = ice.MagStack(files=['vx.h5', 'vy.h5'])
@@ -39,7 +41,7 @@ def build_collection(dates):
     collection.append(poly(tref=tstart, order=1, units='years'))
 
     # Use B-splines for seasonal (short-term) signals
-    Δtdec = 1.0 / 5.0 # years
+    Δtdec = 1.0 / 3.0 # years
     Δt = datetime.timedelta(days=int(Δtdec*365))
     t_current = tstart
     while t_current <= tend:
@@ -58,7 +60,7 @@ def build_collection(dates):
     return collection
 
 # Build a priori covariance matrix, mainly for repeating B-splines
-def computeCm(collection, b_spl_sigma=1.0):
+def computeCm(collection, b_spl_sigma=0.5):
     from scipy.linalg import block_diag
 
     # Define some prior sigmas (large prior sigmas for secular and transient)
@@ -134,6 +136,7 @@ sigmas = [2.0, 1.5, 1.5, 1.5]
 
 # Loop over time series
 fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(18,6))
+fig2, ax4 = plt.subplots(figsize=(9, 5))
 for i in range(len(series)):
 
     # Construct a priori covariance
@@ -159,7 +162,7 @@ for i in range(len(series)):
     
     # Plot full data
     ax1.plot(hel_stack.tdec, series[i], '.')
-    ax1.plot(t_grid, pred['full'], label=labels[i])
+    line, = ax1.plot(t_grid, pred['full'], label=labels[i])
 
     # Plot short-term (add estimated bias (m[0]) for visual clarity)
     ax2.plot(hel_stack.tdec, series_short_term + m[0], '.')
@@ -168,16 +171,29 @@ for i in range(len(series)):
     # Plot long-term
     ax3.plot(hel_stack.tdec, series_long_term, '.')
     ax3.plot(t_grid, long_term, label=labels[i])
+
+    # Plot normalized  short-term signals on same plot
+    smin, smax = np.min(short_term), np.max(short_term)
+    st_norm = (short_term - smin) / (smax - smin)
+    ax4.plot(t_grid, st_norm, label=labels[i], color=line.get_color())
     
 ylim = ax1.get_ylim()
-for ax in (ax1, ax2, ax3):
+for ax in (ax1, ax2, ax3, ax4):
     ax.set_xlabel('Year')
     ax.set_ylabel('Velocity')
-    ax.set_ylim(ylim)
     ax.set_xlim(t_grid[0], t_grid[-1])
+    if ax != ax4:
+        ax.set_ylim(ylim)
+ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+ax4.legend(loc='best')
 
 ax1.set_title('Full fit')
 ax2.set_title('Seasonal fit')
 ax3.set_title('Multi-annual fit')
+fig.set_tight_layout(True)
+
+ax4.set_title('Seasonal fit')
+fig2.set_tight_layout(True)
 
 plt.show()
+
